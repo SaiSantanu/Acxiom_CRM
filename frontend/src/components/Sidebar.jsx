@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, Link } from 'react-router-dom';
 import {
   FiGrid,
   FiUsers,
@@ -9,21 +9,32 @@ import {
   FiActivity,
   FiBarChart2,
   FiSettings,
-  FiX
+  FiX,
+  FiLogOut,
+  FiShield,
+  FiHome,
 } from 'react-icons/fi';
+import { useAuth } from '../context/AuthContext';
 
-const navItems = [
-  { path: '/', label: 'Dashboard', icon: FiGrid },
-  { path: '/customers', label: 'Customers', icon: FiUsers },
-  { path: '/leads', label: 'Leads', icon: FiUserPlus },
-  { path: '/opportunities', label: 'Opportunities', icon: FiTrendingUp },
-  { path: '/follow-ups', label: 'Follow-Ups', icon: FiClock },
-  { path: '/activities', label: 'Activities', icon: FiActivity },
-  { path: '/reports', label: 'Reports', icon: FiBarChart2 },
-  { path: '/settings', label: 'Settings', icon: FiSettings },
+const allNavItems = [
+  { path: '/', label: 'Dashboard', icon: FiGrid, roles: ['ADMIN', 'MANAGER', 'SALES_EXECUTIVE'] },
+  { path: '/customers', label: 'Customers', icon: FiUsers, roles: ['ADMIN', 'MANAGER', 'SALES_EXECUTIVE'] },
+  { path: '/leads', label: 'Leads', icon: FiUserPlus, roles: ['ADMIN', 'MANAGER', 'SALES_EXECUTIVE'] },
+  { path: '/opportunities', label: 'Opportunities', icon: FiTrendingUp, roles: ['ADMIN', 'MANAGER', 'SALES_EXECUTIVE'] },
+  { path: '/follow-ups', label: 'Follow-Ups', icon: FiClock, roles: ['ADMIN', 'MANAGER', 'SALES_EXECUTIVE'] },
+  { path: '/activities', label: 'Activities', icon: FiActivity, roles: ['ADMIN', 'MANAGER', 'SALES_EXECUTIVE'] },
+  { path: '/reports', label: 'Reports', icon: FiBarChart2, roles: ['ADMIN', 'MANAGER'] },
+  { path: '/settings', label: 'Settings', icon: FiSettings, roles: ['ADMIN'] },
 ];
 
 export default function Sidebar({ isOpen, onClose }) {
+  const { user, logout } = useAuth();
+  const userRole = user?.role || 'SALES_EXECUTIVE';
+
+  const visibleNavItems = allNavItems.filter((item) =>
+    item.roles.includes(userRole)
+  );
+
   return (
     <>
       {isOpen && <div className="sidebar-backdrop d-lg-none" onClick={onClose}></div>}
@@ -45,7 +56,7 @@ export default function Sidebar({ isOpen, onClose }) {
 
         <nav className="sidebar-nav">
           <div className="nav-section-title">Navigation</div>
-          {navItems.map((item) => {
+          {visibleNavItems.map((item) => {
             const Icon = item.icon;
             return (
               <NavLink
@@ -62,13 +73,43 @@ export default function Sidebar({ isOpen, onClose }) {
               </NavLink>
             );
           })}
+
+          <div className="nav-section-title mt-3">General</div>
+          <Link
+            to="/landing"
+            className="sidebar-link"
+            onClick={onClose}
+          >
+            <FiHome size={18} />
+            <span>Landing Page</span>
+          </Link>
         </nav>
 
         <div className="sidebar-footer">
-          <div className="d-flex align-items-center justify-content-between">
-            <small>Enterprise Edition</small>
-            <span className="badge bg-secondary-subtle text-light-emphasis">Phase 1</span>
+          <div className="d-flex align-items-center justify-content-between mb-2">
+            <div className="d-flex align-items-center gap-2">
+              <FiShield size={14} className="text-primary-subtle" />
+              <small className="fw-semibold text-white-50">Role</small>
+            </div>
+            <span
+              className={`badge ${
+                user?.role === 'ADMIN'
+                  ? 'bg-danger'
+                  : user?.role === 'MANAGER'
+                  ? 'bg-primary'
+                  : 'bg-success'
+              }`}
+            >
+              {user?.role || 'SALES_EXECUTIVE'}
+            </span>
           </div>
+          <button
+            onClick={logout}
+            className="btn btn-sm btn-outline-danger w-100 d-flex align-items-center justify-content-center gap-2 py-1"
+          >
+            <FiLogOut size={14} />
+            <span>Sign Out</span>
+          </button>
         </div>
       </aside>
     </>

@@ -1,302 +1,581 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import {
   FiUsers,
   FiUserPlus,
-  FiDollarSign,
-  FiClock,
-  FiCheckCircle,
-  FiAlertTriangle,
-  FiRefreshCw,
-  FiServer,
-  FiDatabase,
-  FiLayers,
   FiTrendingUp,
-  FiAward
+  FiClock,
+  FiAward,
+  FiActivity,
+  FiRefreshCw,
+  FiAlertTriangle,
+  FiCheckCircle,
+  FiDollarSign,
+  FiCalendar,
+  FiPlus,
+  FiPhone,
+  FiMail,
+  FiMapPin,
+  FiCheckSquare,
+  FiArrowRight,
 } from 'react-icons/fi';
-import { Link } from 'react-router-dom';
-import crmService from '../services/crmService';
-import customerService from '../services/customerService';
-import leadService from '../services/leadService';
-import opportunityService from '../services/opportunityService';
+import { Chart, registerables } from 'chart.js';
+import dashboardService from '../services/dashboardService';
+import { useAuth } from '../context/AuthContext';
+
+// Register Chart.js components
+Chart.register(...registerables);
 
 export default function Dashboard() {
-  const [healthData, setHealthData] = useState(null);
-  const [customerCount, setCustomerCount] = useState(null);
-  const [leadsCount, setLeadsCount] = useState(null);
-  const [oppSummary, setOppSummary] = useState(null);
+  const { user } = useAuth();
+  const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState('');
+  const [timeFilter, setTimeFilter] = useState('ALL'); // ALL, MONTH, WEEK, TODAY
 
-  const fetchHealth = async () => {
+  // Canvas refs for Chart.js
+  const leadChartRef = useRef(null);
+  const oppChartRef = useRef(null);
+  const leadChartInstance = useRef(null);
+  const oppChartInstance = useRef(null);
+
+  const fetchStats = async () => {
     setLoading(true);
-    setError(null);
+    setError('');
     try {
-      const response = await crmService.getHealth();
-      setHealthData(response.data || response);
-      try {
-        const custRes = await customerService.getAll();
-        setCustomerCount(custRes.data?.length ?? 0);
-      } catch (e) {}
-
-      try {
-        const leadRes = await leadService.getAll();
-        const leadList = leadRes.data || [];
-        setLeadsCount(leadList.length);
-      } catch (e) {}
-
-      try {
-        const oppRes = await opportunityService.getSummary();
-        setOppSummary(oppRes.data || null);
-      } catch (e) {}
+      const res = await dashboardService.getStats();
+      if (res && res.data) {
+        setStats(res.data.data || res.data);
+      }
     } catch (err) {
-      setError(err.message || 'Unable to reach backend health endpoint at http://localhost:8080/api/health');
+      setError(
+        err.response?.data?.message ||
+        'Failed to retrieve live CRM dashboard metrics. Please ensure backend is running.'
+      );
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchHealth();
+    fetchStats();
   }, []);
 
+  // Initialize and update charts when stats are available
+  useEffect(() => {
+    if (!stats) return;
+
+    // 1. Lead Status Doughnut Chart
+    if (leadChartRef.current) {
+      if (leadChartInstance.current) {
+        leadChartInstance.current.destroy();
+      }
+
+      const leadDist = stats.leadStatusDistribution || {};
+      const labels = Object.keys(leadDist).map((k) => k.replace('_', ' '));
+      const dataValues = Object.values(leadDist);
+
+      const ctx = leadChartRef.current.getContext('2d');
+      leadChartInstance.current = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: labels.length ? labels : ['No Leads'],
+          datasets: [
+            {
+              data: dataValues.length && dataValues.some((v) => v > 0) ? dataValues : [1],
+              backgroundColor: [
+                '#3b82f6', // NEW
+                '#60a5fa', // CONTACTED
+                '#10b981', // QUALIFIED
+                '#ef4444', // UNQUALIFIED
+                '#8b5cf6', // CONVERTED
+                '#64748b', // LOST
+              ],
+              borderWidth: 2,
+              borderColor: '#ffffff',
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: {
+                boxWidth: 12,
+                padding: 12,
+                font: { size: 11 },
+              },
+            },
+          },
+          cutout: '65%',
+        },
+      });
+    }
+
+    // 2. Opportunity Stage & Revenue Bar Chart
+    if (oppChartRef.current) {
+      if (oppChartInstance.current) {
+        oppChartInstance.current.destroy();
+      }
+
+      const oppDist = stats.opportunityStageDistribution || {};
+      const stages = Object.keys(oppDist);
+      const counts = stages.map((s) => oppDist[s]?.count || 0);
+      const amounts = stages.map((s) => Number(oppDist[s]?.totalAmount || 0));
+
+      const ctx = oppChartRef.current.getContext('2d');
+      oppChartInstance.current = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: stages.map((s) => s.replace('_', ' ')),
+          datasets: [
+            {
+              label: 'Deal Count',
+              data: counts,
+              backgroundColor: 'rgba(59, 130, 246, 0.85)',
+              borderRadius: 6,
+              yAxisID: 'yCount',
+            },
+            {
+              label: 'Total Value ($)',
+              data: amounts,
+              backgroundColor: 'rgba(16, 185, 129, 0.85)',
+              borderRadius: 6,
+              yAxisID: 'yAmount',
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            yCount: {
+              type: 'linear',
+              position: 'left',
+              title: { display: true, text: 'Deals' },
+              beginAtZero: true,
+              ticks: { precision: 0 },
+            },
+            yAmount: {
+              type: 'linear',
+              position: 'right',
+              title: { display: true, text: 'Amount ($)' },
+              beginAtZero: true,
+              grid: { drawOnChartArea: false },
+            },
+          },
+          plugins: {
+            legend: {
+              position: 'top',
+              labels: { boxWidth: 12, font: { size: 11 } },
+            },
+          },
+        },
+      });
+    }
+
+    return () => {
+      if (leadChartInstance.current) leadChartInstance.current.destroy();
+      if (oppChartInstance.current) oppChartInstance.current.destroy();
+    };
+  }, [stats]);
+
   return (
-    <div className="container-fluid p-0">
-      {/* Page Header */}
-      <div className="d-flex flex-wrap align-items-center justify-content-between mb-4">
+    <div className="container-fluid py-2">
+      {/* Top Banner & Header */}
+      <div className="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
         <div>
-          <h3 className="fw-bold mb-1" style={{ color: '#0f172a' }}>
-            CRM Dashboard
-          </h3>
-          <p className="text-muted mb-0" style={{ fontSize: '0.9rem' }}>
-            AcxiomCRM Enterprise Management System — Phase 1 Setup & Status
+          <div className="d-flex align-items-center gap-2 mb-1">
+            <h3 className="fw-bold text-dark mb-0">Executive CRM Dashboard</h3>
+            <span
+              className={`badge ${
+                user?.role === 'ADMIN'
+                  ? 'bg-danger'
+                  : user?.role === 'MANAGER'
+                  ? 'bg-primary'
+                  : 'bg-success'
+              }`}
+            >
+              {user?.role || 'User'} View
+            </span>
+          </div>
+          <p className="text-muted small mb-0">
+            Real-time pipeline metrics, conversion performance, and scheduled customer touchpoints.
           </p>
         </div>
-        <div className="mt-2 mt-sm-0">
+
+        {/* Timeframe & Refresh Controls */}
+        <div className="d-flex align-items-center gap-2">
+          <div className="btn-group btn-group-sm" role="group">
+            {['ALL', 'MONTH', 'WEEK', 'TODAY'].map((filter) => (
+              <button
+                key={filter}
+                type="button"
+                className={`btn ${timeFilter === filter ? 'btn-primary' : 'btn-outline-secondary'}`}
+                onClick={() => setTimeFilter(filter)}
+              >
+                {filter === 'ALL'
+                  ? 'All Time'
+                  : filter === 'MONTH'
+                  ? 'This Month'
+                  : filter === 'WEEK'
+                  ? 'This Week'
+                  : 'Today'}
+              </button>
+            ))}
+          </div>
+
           <button
-            className="btn btn-outline-primary btn-sm d-flex align-items-center gap-2"
-            onClick={fetchHealth}
+            className="btn btn-outline-secondary btn-sm d-flex align-items-center gap-2"
+            onClick={fetchStats}
             disabled={loading}
+            title="Refresh database metrics"
           >
             <FiRefreshCw className={loading ? 'spinner-border spinner-border-sm' : ''} size={14} />
-            Refresh Health Check
+            <span className="d-none d-sm-inline">Refresh</span>
           </button>
         </div>
       </div>
 
+      {/* Error Banner */}
+      {error && (
+        <div className="alert alert-danger d-flex align-items-center gap-2 py-2 px-3 small mb-4">
+          <FiAlertTriangle size={18} className="flex-shrink-0" />
+          <div className="flex-grow-1">{error}</div>
+          <button className="btn btn-sm btn-outline-danger py-0 px-2" onClick={fetchStats}>
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* KPI Metric Cards */}
       <div className="row g-3 mb-4">
+        {/* Total Customers */}
         <div className="col-12 col-sm-6 col-xl-3">
           <Link to="/customers" className="text-decoration-none">
-            <div className="metric-card d-flex align-items-center justify-content-between">
-              <div>
-                <div className="metric-label">Total Customers</div>
-                <div className="metric-value mt-1">{customerCount !== null ? customerCount : '...'}</div>
-                <small className="text-success fw-medium">Live from MySQL database</small>
-              </div>
-              <div className="metric-icon-wrap" style={{ backgroundColor: '#eff6ff', color: '#2563eb' }}>
-                <FiUsers />
+            <div className="card border-0 shadow-sm rounded-3 p-3 h-100 hover-shadow transition">
+              <div className="d-flex align-items-center justify-content-between">
+                <div>
+                  <span className="text-muted small fw-semibold text-uppercase">Total Customers</span>
+                  <h3 className="fw-bold mt-1 mb-0 text-dark">
+                    {loading ? '...' : stats?.totalCustomers ?? 0}
+                  </h3>
+                  <small className="text-success fw-medium">Active CRM Accounts &rarr;</small>
+                </div>
+                <div className="p-3 bg-primary-subtle text-primary rounded-3">
+                  <FiUsers size={24} />
+                </div>
               </div>
             </div>
           </Link>
         </div>
 
+        {/* Leads Pipeline */}
         <div className="col-12 col-sm-6 col-xl-3">
           <Link to="/leads" className="text-decoration-none">
-            <div className="metric-card d-flex align-items-center justify-content-between">
-              <div>
-                <div className="metric-label">Active Leads</div>
-                <div className="metric-value mt-1">{leadsCount !== null ? leadsCount : '...'}</div>
-                <small className="text-primary fw-medium">Active sales pipeline</small>
-              </div>
-              <div className="metric-icon-wrap" style={{ backgroundColor: '#f0fdf4', color: '#16a34a' }}>
-                <FiUserPlus />
+            <div className="card border-0 shadow-sm rounded-3 p-3 h-100 hover-shadow transition">
+              <div className="d-flex align-items-center justify-content-between">
+                <div>
+                  <span className="text-muted small fw-semibold text-uppercase">Active Leads</span>
+                  <h3 className="fw-bold mt-1 mb-0 text-primary">
+                    {loading ? '...' : stats?.openLeads ?? 0}
+                  </h3>
+                  <small className="text-muted">
+                    {stats?.totalLeads ?? 0} total lifetime leads &rarr;
+                  </small>
+                </div>
+                <div className="p-3 bg-info-subtle text-info rounded-3">
+                  <FiUserPlus size={24} />
+                </div>
               </div>
             </div>
           </Link>
         </div>
 
+        {/* Open Pipeline Value */}
         <div className="col-12 col-sm-6 col-xl-3">
           <Link to="/opportunities" className="text-decoration-none">
-            <div className="metric-card d-flex align-items-center justify-content-between">
-              <div>
-                <div className="metric-label">Open Pipeline Value</div>
-                <div className="metric-value mt-1 text-primary">
-                  ${oppSummary?.totalOpenPipeline !== undefined
-                    ? Number(oppSummary.totalOpenPipeline).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                    : '0.00'}
+            <div className="card border-0 shadow-sm rounded-3 p-3 h-100 hover-shadow transition">
+              <div className="d-flex align-items-center justify-content-between">
+                <div>
+                  <span className="text-muted small fw-semibold text-uppercase">Open Pipeline</span>
+                  <h3 className="fw-bold mt-1 mb-0 text-dark">
+                    $
+                    {loading
+                      ? '...'
+                      : Number(stats?.totalOpenPipelineValue || 0).toLocaleString(undefined, {
+                          minimumFractionDigits: 0,
+                          maximumFractionDigits: 0,
+                        })}
+                  </h3>
+                  <small className="text-muted">
+                    Weighted: $
+                    {Number(stats?.weightedOpenPipelineValue || 0).toLocaleString(undefined, {
+                      minimumFractionDigits: 0,
+                      maximumFractionDigits: 0,
+                    })}{' '}
+                    ({stats?.openOpportunities ?? 0} deals)
+                  </small>
                 </div>
-                <small className="text-muted fw-medium">
-                  Weighted: ${oppSummary?.weightedOpenPipeline !== undefined
-                    ? Number(oppSummary.weightedOpenPipeline).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                    : '0.00'}
-                </small>
-              </div>
-              <div className="metric-icon-wrap" style={{ backgroundColor: '#eff6ff', color: '#2563eb' }}>
-                <FiTrendingUp />
+                <div className="p-3 bg-warning-subtle text-warning rounded-3">
+                  <FiTrendingUp size={24} />
+                </div>
               </div>
             </div>
           </Link>
         </div>
 
+        {/* Closed Won Revenue */}
         <div className="col-12 col-sm-6 col-xl-3">
           <Link to="/opportunities" className="text-decoration-none">
-            <div className="metric-card d-flex align-items-center justify-content-between">
-              <div>
-                <div className="metric-label">Closed Won Revenue</div>
-                <div className="metric-value mt-1 text-success">
-                  ${oppSummary?.totalWonRevenue !== undefined
-                    ? Number(oppSummary.totalWonRevenue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                    : '0.00'}
+            <div className="card border-0 shadow-sm rounded-3 p-3 h-100 hover-shadow transition">
+              <div className="d-flex align-items-center justify-content-between">
+                <div>
+                  <span className="text-muted small fw-semibold text-uppercase">Won Revenue</span>
+                  <h3 className="fw-bold mt-1 mb-0 text-success">
+                    $
+                    {loading
+                      ? '...'
+                      : Number(stats?.totalWonRevenue || 0).toLocaleString(undefined, {
+                          minimumFractionDigits: 0,
+                          maximumFractionDigits: 0,
+                        })}
+                  </h3>
+                  <small className="text-success fw-medium">
+                    {stats?.wonOpportunities ?? 0} won deals &bull; Success rate &rarr;
+                  </small>
                 </div>
-                <small className="text-success fw-medium">
-                  {oppSummary?.wonOpportunities ?? 0} won deals ({oppSummary?.totalOpportunities ?? 0} total)
-                </small>
-              </div>
-              <div className="metric-icon-wrap" style={{ backgroundColor: '#f0fdf4', color: '#16a34a' }}>
-                <FiAward />
+                <div className="p-3 bg-success-subtle text-success rounded-3">
+                  <FiAward size={24} />
+                </div>
               </div>
             </div>
           </Link>
         </div>
       </div>
 
-      {/* Health & Architecture Card */}
-      <div className="row g-3">
-        <div className="col-12 col-lg-8">
-          <div className="crm-card">
-            <div className="crm-card-header d-flex align-items-center justify-content-between">
-              <div className="d-flex align-items-center gap-2">
-                <FiServer className="text-primary" />
-                <span className="fw-semibold">System Architecture & Service Health</span>
+      {/* Secondary KPI Row */}
+      <div className="row g-3 mb-4">
+        <div className="col-md-6 col-lg-3">
+          <div className="card border-0 shadow-sm rounded-3 p-3">
+            <div className="d-flex align-items-center justify-content-between">
+              <div>
+                <span className="text-muted small fw-medium text-uppercase">Planned Follow-Ups</span>
+                <h4 className="fw-bold mt-1 mb-0 text-dark">{stats?.pendingFollowUps ?? 0}</h4>
               </div>
-              <span className="badge bg-primary-subtle text-primary border border-primary-subtle">
-                Phase 1 Verified
-              </span>
-            </div>
-            <div className="p-4">
-              {loading ? (
-                <div className="text-center py-4">
-                  <div className="spinner-border text-primary" role="status">
-                    <span className="visually-hidden">Loading health check...</span>
-                  </div>
-                  <div className="text-muted mt-2">Checking Spring Boot service at /api/health...</div>
-                </div>
-              ) : error ? (
-                <div className="alert alert-warning d-flex align-items-start gap-3 mb-3">
-                  <FiAlertTriangle className="flex-shrink-0 mt-1" size={20} />
-                  <div>
-                    <div className="fw-bold">Backend Health Check Endpoint Pending Connection</div>
-                    <div className="small mt-1">{error}</div>
-                    <div className="small text-muted mt-2">
-                      Ensure the Spring Boot backend is running via <code>mvn spring-boot:run</code> on port 8080.
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="alert alert-success d-flex align-items-start gap-3 mb-3">
-                  <FiCheckCircle className="flex-shrink-0 mt-1 text-success" size={20} />
-                  <div>
-                    <div className="fw-bold text-success">Spring Boot Backend is Operational</div>
-                    <div className="small mt-1 text-dark">
-                      Service: <strong>{healthData.service}</strong> | Status: <strong>{healthData.status}</strong> | Version: <strong>{healthData.version}</strong>
-                    </div>
-                    <div className="small text-muted mt-1">
-                      Database Layer: <code>{healthData.databaseStatus || 'Configured via application.properties'}</code>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div className="table-responsive mt-3">
-                <table className="table table-bordered table-sm align-middle mb-0">
-                  <thead className="table-light">
-                    <tr>
-                      <th>Layer</th>
-                      <th>Technology</th>
-                      <th>Expected Port</th>
-                      <th>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td><span className="fw-medium">Frontend</span></td>
-                      <td>React 18 + Vite + Bootstrap 5</td>
-                      <td><code>5173</code></td>
-                      <td><span className="badge bg-success-subtle text-success">Active & Running</span></td>
-                    </tr>
-                    <tr>
-                      <td><span className="fw-medium">Backend</span></td>
-                      <td>Java 21/23 + Spring Boot 3.3.5 + Maven</td>
-                      <td><code>8080</code></td>
-                      <td>
-                        {healthData?.status === 'UP' ? (
-                          <span className="badge bg-success-subtle text-success">Active (UP)</span>
-                        ) : (
-                          <span className="badge bg-secondary-subtle text-secondary">Ready to Start</span>
-                        )}
-                      </td>
-                    </tr>
-                    <tr>
-                      <td><span className="fw-medium">Database</span></td>
-                      <td>MySQL 8 Community Server (<code>acxiom_crm</code>)</td>
-                      <td><code>3306</code></td>
-                      <td>
-                        <span className="badge bg-info-subtle text-info">
-                          {healthData?.databaseStatus?.includes('CONNECTED') ? 'Connected' : 'Configured (External Credentials)'}
-                        </span>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td><span className="fw-medium">API Base</span></td>
-                      <td>Axios REST Client</td>
-                      <td><code>/api</code></td>
-                      <td><span className="badge bg-success-subtle text-success">CORS http://localhost:5173</span></td>
-                    </tr>
-                  </tbody>
-                </table>
+              <div className="p-2 bg-primary-subtle text-primary rounded-3">
+                <FiClock size={18} />
               </div>
             </div>
           </div>
         </div>
 
-        {/* Quick Links / Module Roadmap */}
-        <div className="col-12 col-lg-4">
-          <div className="crm-card h-100">
-            <div className="crm-card-header d-flex align-items-center gap-2">
-              <FiLayers className="text-primary" />
-              <span className="fw-semibold">CRM Modules Roadmap</span>
-            </div>
-            <div className="p-3">
-              <div className="list-group list-group-flush">
-                {[
-                  { name: 'Dashboard', phase: 'Phase 1', status: 'Implemented' },
-                  { name: 'Customers Module', phase: 'Phase 2', status: 'Implemented' },
-                  { name: 'Leads Pipeline', phase: 'Phase 3', status: 'Implemented' },
-                  { name: 'Opportunities', phase: 'Phase 4', status: 'Implemented' },
-                  { name: 'Follow-Ups', phase: 'Phase 5', status: 'Planned' },
-                  { name: 'Activities & Tasks', phase: 'Phase 5', status: 'Planned' },
-                  { name: 'Reports & Analytics', phase: 'Phase 6', status: 'Planned' },
-                  { name: 'Settings & Security', phase: 'Phase 6', status: 'Planned' },
-                ].map((item, idx) => (
-                  <div key={idx} className="list-group-item px-0 py-2 d-flex justify-content-between align-items-center">
-                    <div>
-                      <span className="fw-medium" style={{ fontSize: '0.9rem' }}>{item.name}</span>
-                      <small className="text-muted d-block">{item.phase}</small>
-                    </div>
-                    <span
-                      className={`badge ${
-                        item.status === 'Implemented'
-                          ? 'bg-success-subtle text-success'
-                          : 'bg-light text-secondary border'
-                      }`}
-                    >
-                      {item.status}
-                    </span>
-                  </div>
-                ))}
+        <div className="col-md-6 col-lg-3">
+          <div className="card border-0 shadow-sm rounded-3 p-3">
+            <div className="d-flex align-items-center justify-content-between">
+              <div>
+                <span className="text-muted small fw-medium text-uppercase">Overdue Follow-Ups</span>
+                <h4
+                  className={`fw-bold mt-1 mb-0 ${
+                    stats?.overdueFollowUps > 0 ? 'text-danger' : 'text-success'
+                  }`}
+                >
+                  {stats?.overdueFollowUps ?? 0}
+                </h4>
+              </div>
+              <div
+                className={`p-2 rounded-3 ${
+                  stats?.overdueFollowUps > 0 ? 'bg-danger-subtle text-danger' : 'bg-success-subtle text-success'
+                }`}
+              >
+                <FiAlertTriangle size={18} />
               </div>
             </div>
           </div>
+        </div>
+
+        <div className="col-md-6 col-lg-3">
+          <div className="card border-0 shadow-sm rounded-3 p-3">
+            <div className="d-flex align-items-center justify-content-between">
+              <div>
+                <span className="text-muted small fw-medium text-uppercase">Logged Activities</span>
+                <h4 className="fw-bold mt-1 mb-0 text-dark">{stats?.totalActivities ?? 0}</h4>
+              </div>
+              <div className="p-2 bg-info-subtle text-info rounded-3">
+                <FiActivity size={18} />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="col-md-6 col-lg-3">
+          <div className="card border-0 shadow-sm rounded-3 p-3">
+            <div className="d-flex align-items-center justify-content-between">
+              <div>
+                <span className="text-muted small fw-medium text-uppercase">Lost Deals</span>
+                <h4 className="fw-bold mt-1 mb-0 text-secondary">{stats?.lostOpportunities ?? 0}</h4>
+              </div>
+              <div className="p-2 bg-secondary-subtle text-secondary rounded-3">
+                <FiCheckSquare size={18} />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Charts Section */}
+      <div className="row g-4 mb-4">
+        {/* Opportunity Pipeline by Stage */}
+        <div className="col-lg-8">
+          <div className="card border-0 shadow-sm rounded-3 h-100 p-3">
+            <div className="d-flex align-items-center justify-content-between pb-2 mb-2 border-bottom">
+              <div>
+                <h6 className="fw-bold text-dark mb-0">Opportunity Pipeline by Stage</h6>
+                <small className="text-muted">Deal counts & total value distribution</small>
+              </div>
+              <Link to="/opportunities" className="text-decoration-none small fw-semibold text-primary">
+                View Deals &rarr;
+              </Link>
+            </div>
+            <div style={{ height: 280, position: 'relative' }}>
+              <canvas ref={oppChartRef} />
+            </div>
+          </div>
+        </div>
+
+        {/* Lead Conversion Distribution */}
+        <div className="col-lg-4">
+          <div className="card border-0 shadow-sm rounded-3 h-100 p-3">
+            <div className="d-flex align-items-center justify-content-between pb-2 mb-2 border-bottom">
+              <div>
+                <h6 className="fw-bold text-dark mb-0">Lead Status Mix</h6>
+                <small className="text-muted">Active prospect progression</small>
+              </div>
+              <Link to="/leads" className="text-decoration-none small fw-semibold text-primary">
+                View Leads &rarr;
+              </Link>
+            </div>
+            <div style={{ height: 280, position: 'relative' }}>
+              <canvas ref={leadChartRef} />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Feeds: Upcoming Follow-ups & Recent Activities */}
+      <div className="row g-4 mb-4">
+        {/* Upcoming Follow-ups */}
+        <div className="col-lg-6">
+          <div className="card border-0 shadow-sm rounded-3 p-3 h-100">
+            <div className="d-flex align-items-center justify-content-between pb-2 mb-3 border-bottom">
+              <div className="d-flex align-items-center gap-2">
+                <FiClock className="text-primary" />
+                <h6 className="fw-bold text-dark mb-0">Upcoming Follow-Ups</h6>
+              </div>
+              <Link to="/follow-ups" className="small fw-semibold text-primary text-decoration-none">
+                All Follow-Ups &rarr;
+              </Link>
+            </div>
+
+            {loading ? (
+              <div className="text-center py-4 text-muted small">Loading schedule...</div>
+            ) : !stats?.upcomingFollowUps || stats.upcomingFollowUps.length === 0 ? (
+              <div className="text-center py-4 text-muted small">
+                <FiCheckCircle size={32} className="text-success opacity-50 mb-2" />
+                <p className="mb-0">All follow-ups completed! No pending items.</p>
+              </div>
+            ) : (
+              <div className="list-group list-group-flush">
+                {stats.upcomingFollowUps.map((item) => (
+                  <div
+                    key={item.id}
+                    className="list-group-item px-0 py-2 d-flex justify-content-between align-items-center"
+                  >
+                    <div>
+                      <div className="fw-semibold text-dark small">{item.subject}</div>
+                      <small className="text-muted">
+                        {item.customerName || item.leadName || 'General'} &bull; Assigned:{' '}
+                        {item.assignedTo || 'Unassigned'}
+                      </small>
+                    </div>
+                    <div className="text-end">
+                      <span className="badge bg-light text-dark border small">{item.followUpType}</span>
+                      <div className="small text-muted mt-1">{item.followUpDate}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Recent Activities */}
+        <div className="col-lg-6">
+          <div className="card border-0 shadow-sm rounded-3 p-3 h-100">
+            <div className="d-flex align-items-center justify-content-between pb-2 mb-3 border-bottom">
+              <div className="d-flex align-items-center gap-2">
+                <FiActivity className="text-info" />
+                <h6 className="fw-bold text-dark mb-0">Recent Activities & Logs</h6>
+              </div>
+              <Link to="/activities" className="small fw-semibold text-primary text-decoration-none">
+                All Activities &rarr;
+              </Link>
+            </div>
+
+            {loading ? (
+              <div className="text-center py-4 text-muted small">Loading activities...</div>
+            ) : !stats?.recentActivities || stats.recentActivities.length === 0 ? (
+              <div className="text-center py-4 text-muted small">
+                <p className="mb-0">No activities recorded yet.</p>
+              </div>
+            ) : (
+              <div className="list-group list-group-flush">
+                {stats.recentActivities.map((act) => (
+                  <div
+                    key={act.id}
+                    className="list-group-item px-0 py-2 d-flex justify-content-between align-items-center"
+                  >
+                    <div>
+                      <div className="fw-semibold text-dark small">{act.subject}</div>
+                      <small className="text-muted">
+                        {act.customerName || act.leadName || 'General'} &bull; {act.assignedTo || 'Rep'}
+                      </small>
+                    </div>
+                    <div className="text-end">
+                      <span className="badge bg-primary-subtle text-primary small">
+                        {act.activityType}
+                      </span>
+                      <div className="small text-muted mt-1">{act.activityDate}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Quick Launchpad Buttons */}
+      <div className="card border-0 shadow-sm rounded-3 p-4 bg-light">
+        <h6 className="fw-bold text-dark mb-3">Quick CRM Actions</h6>
+        <div className="d-flex flex-wrap gap-2">
+          <Link to="/customers" className="btn btn-outline-primary btn-sm d-flex align-items-center gap-1">
+            <FiPlus size={14} /> New Customer
+          </Link>
+          <Link to="/leads" className="btn btn-outline-success btn-sm d-flex align-items-center gap-1">
+            <FiPlus size={14} /> New Lead
+          </Link>
+          <Link to="/opportunities" className="btn btn-outline-warning btn-sm d-flex align-items-center gap-1">
+            <FiPlus size={14} /> New Deal / Opportunity
+          </Link>
+          <Link to="/follow-ups" className="btn btn-outline-info btn-sm d-flex align-items-center gap-1">
+            <FiClock size={14} /> Schedule Follow-Up
+          </Link>
+          <Link to="/activities" className="btn btn-outline-secondary btn-sm d-flex align-items-center gap-1">
+            <FiActivity size={14} /> Log Activity
+          </Link>
         </div>
       </div>
     </div>

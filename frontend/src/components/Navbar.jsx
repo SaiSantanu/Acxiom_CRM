@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { FiMenu, FiBell, FiSearch, FiCheckCircle, FiAlertCircle, FiRefreshCw } from 'react-icons/fi';
+import { FiMenu, FiBell, FiSearch, FiCheckCircle, FiAlertCircle, FiRefreshCw, FiLogOut } from 'react-icons/fi';
 import crmService from '../services/crmService';
+import { useAuth } from '../context/AuthContext';
 
 export default function Navbar({ onToggleSidebar }) {
+  const { user, logout } = useAuth();
   const [backendStatus, setBackendStatus] = useState({
     loading: true,
     connected: false,
@@ -41,6 +43,16 @@ export default function Navbar({ onToggleSidebar }) {
     const interval = setInterval(checkStatus, 30000);
     return () => clearInterval(interval);
   }, []);
+
+  const getInitials = (name) => {
+    if (!name) return 'U';
+    return name
+      .split(' ')
+      .map((part) => part[0])
+      .join('')
+      .toUpperCase()
+      .substring(0, 2);
+  };
 
   return (
     <header className="crm-navbar">
@@ -102,22 +114,36 @@ export default function Navbar({ onToggleSidebar }) {
           </span>
         </button>
 
-        {/* User Avatar */}
+        {/* User Avatar & Logout */}
         <div className="d-flex align-items-center gap-2 ps-2 border-start">
           <div
-            className="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center fw-bold"
+            className={`rounded-circle text-white d-flex align-items-center justify-content-center fw-bold ${
+              user?.role === 'ADMIN'
+                ? 'bg-danger'
+                : user?.role === 'MANAGER'
+                ? 'bg-primary'
+                : 'bg-success'
+            }`}
             style={{ width: 34, height: 34, fontSize: '0.85rem' }}
           >
-            AD
+            {getInitials(user?.fullName || user?.username)}
           </div>
           <div className="d-none d-xl-block">
-            <div className="fw-semibold text-truncate" style={{ fontSize: '0.85rem', maxWidth: 120 }}>
-              Admin User
+            <div className="fw-semibold text-truncate" style={{ fontSize: '0.85rem', maxWidth: 130 }}>
+              {user?.fullName || user?.username || 'User'}
             </div>
-            <div className="text-muted" style={{ fontSize: '0.75rem' }}>
-              CRM Admin
+            <div className="text-muted" style={{ fontSize: '0.72rem' }}>
+              {user?.role || 'Guest'}
             </div>
           </div>
+          <button
+            onClick={logout}
+            className="btn btn-sm btn-outline-secondary p-1 ms-1 text-muted"
+            title="Sign out of CRM"
+            aria-label="Sign out"
+          >
+            <FiLogOut size={16} />
+          </button>
         </div>
       </div>
     </header>
