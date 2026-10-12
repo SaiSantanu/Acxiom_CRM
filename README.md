@@ -2,6 +2,8 @@
 
 Welcome to **AcxiomCRM**, a modern enterprise-grade Customer Relationship Management platform built with a decoupled architecture: React (Vite) frontend, Spring Boot (Java) backend, and MySQL 8 database.
 
+This is made by Sai Santanu Sahoo
+from C.V. Raman Global University, Bhubaneswar.
 ---
 
 ## 1. Architecture & Technology Stack
@@ -16,26 +18,26 @@ Welcome to **AcxiomCRM**, a modern enterprise-grade Customer Relationship Manage
 
 ## 2. Project Modules & Features
 
-### 🟢 Phase 1: Core System Foundation
+###  Core System Foundation
 - Spring Boot 3 + Maven service setup.
 - React 18 + Vite shell with responsive Bootstrap 5 navy sidebar layout.
 - Centralized Axios client (`/api`) with CORS configuration.
 - Global Exception Handler (`@RestControllerAdvice`) returning standardized JSON error payloads.
 - Automated service health check endpoint: `GET /api/health`.
 
-### 🟢 Phase 2: Customer Management
+###  Customer Management
 - Complete Customer JPA Entity (`customers` table) with auto-generated unique `customerCode` (`CUST-XXXXXX`).
 - Full CRUD operations: Create, Read, Search, Update, Soft Deactivate, and Permanent Delete.
 - Duplicate detection on email and phone numbers.
 - Responsive React management page (`/customers`) with modal forms, filters, and real-time backend persistence.
 
-### 🟢 Phase 3: Lead Management Pipeline
+###  Lead Management Pipeline
 - Lead JPA Entity (`leads` table) with auto-generated unique `leadCode` (`LEAD-XXXXXX`).
 - Configurable lead attributes: source, status (`NEW`, `CONTACTED`, `QUALIFIED`, `UNQUALIFIED`, `LOST`), priority, expected revenue value, and assigned sales representative.
 - Comprehensive search and filtering by status.
 - Management page (`/leads`) with dynamic modal forms, status badges, and inline validation.
 
-### 🟢 Phase 4: Opportunity Management & Sales Pipeline
+###  Opportunity Management & Sales Pipeline
 - Opportunity JPA Entity (`opportunities` table) with auto-generated unique `opportunityCode` (`OPP-XXXXXX`).
 - Foreign-key relationships to `Customer` and `Lead` with flattened, circular-reference-safe DTO serialization.
 - Pipeline stages: `QUALIFICATION`, `PROPOSAL`, `NEGOTIATION`, `WON`, `LOST`.
