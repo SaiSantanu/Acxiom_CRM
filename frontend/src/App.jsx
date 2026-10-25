@@ -14,6 +14,8 @@ import Activities from './pages/Activities';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
 
+import ErrorBoundary from './components/ErrorBoundary';
+
 /**
  * RootRoute: If unauthenticated, displays the Landing Page with the "Go to Login" button
  * and developer attribution. If authenticated, displays the full CRM Dashboard in MainLayout.
@@ -42,7 +44,8 @@ function RootRoute() {
 
 export default function App() {
   return (
-    <AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
       <BrowserRouter>
         <Routes>
           {/* Dedicated Landing Page route */}
@@ -96,5 +99,6 @@ export default function App() {
         </Routes>
       </BrowserRouter>
     </AuthProvider>
+    </ErrorBoundary>
   );
 }

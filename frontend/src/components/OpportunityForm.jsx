@@ -40,6 +40,9 @@ export default function OpportunityForm({ isOpen, onClose, onSave, initialData }
   // Format today's date as YYYY-MM-DD
   const todayStr = new Date().toISOString().split('T')[0];
 
+  // Active opportunity check: stage is not WON and not LOST
+  const isActive = formData.stage !== 'WON' && formData.stage !== 'LOST';
+
   useEffect(() => {
     if (isOpen) {
       loadDropdownData();
@@ -126,7 +129,6 @@ export default function OpportunityForm({ isOpen, onClose, onSave, initialData }
     }
 
     // Active opportunity check: stage not WON and not LOST
-    const isActive = formData.stage !== 'WON' && formData.stage !== 'LOST';
     if (isActive && formData.expectedCloseDate) {
       if (formData.expectedCloseDate < todayStr) {
         errs.expectedCloseDate = 'Expected close date cannot be in the past for an active opportunity.';
