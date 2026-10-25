@@ -165,9 +165,8 @@ export default function Login() {
                   </span>
                   <input
                     type="text"
-                    className={`form-control border-0 text-white ${
-                      validationErrors.usernameOrEmail ? 'is-invalid' : ''
-                    }`}
+                    className={`form-control border-0 text-white ${validationErrors.usernameOrEmail ? 'is-invalid' : ''
+                      }`}
                     style={{ backgroundColor: '#334155' }}
                     placeholder="e.g. admin or admin@acxiom.com"
                     value={usernameOrEmail}
@@ -201,9 +200,8 @@ export default function Login() {
                   </span>
                   <input
                     type={showPassword ? 'text' : 'password'}
-                    className={`form-control border-0 text-white ${
-                      validationErrors.password ? 'is-invalid' : ''
-                    }`}
+                    className={`form-control border-0 text-white ${validationErrors.password ? 'is-invalid' : ''
+                      }`}
                     style={{ backgroundColor: '#334155' }}
                     placeholder="Enter your account password"
                     value={password}
