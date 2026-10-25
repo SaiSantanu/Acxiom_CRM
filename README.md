@@ -4,6 +4,8 @@ Welcome to **AcxiomCRM**, a modern enterprise-grade Customer Relationship Manage
 
 This is made by Sai Santanu Sahoo
 from C.V. Raman Global University, Bhubaneswar.
+
+> **Full Architecture & Technical Documentation:** See [DOCUMENTATION.md](DOCUMENTATION.md) for complete workflow diagrams, component deep-dives, folder structures, database ERD, and REST API catalogs.
 ---
 
 ## 1. Architecture & Technology Stack

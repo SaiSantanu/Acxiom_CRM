@@ -72,8 +72,10 @@ public class CustomerController {
     /**
      * DELETE /api/customers/{id}
      * Deactivate customer (or optionally permanent delete if ?permanent=true).
+     * Restricted to ADMIN and MANAGER roles.
      */
     @DeleteMapping("/{id}")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<CustomerResponse>> deleteCustomer(
             @PathVariable Long id,
             @RequestParam(value = "permanent", defaultValue = "false") boolean permanent) {
